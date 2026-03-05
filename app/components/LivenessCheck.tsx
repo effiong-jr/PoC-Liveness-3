@@ -13,6 +13,31 @@ const VIDEO_CONSTRAINTS = {
   height: { ideal: 480 },
 };
 
+function loadMediaPipe(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof (window as any).FaceDetection !== 'undefined') {
+      resolve();
+      return;
+    }
+    const existing = document.querySelector<HTMLScriptElement>('script[data-mediapipe]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve());
+      existing.addEventListener('error', () =>
+        reject(new Error('Failed to load MediaPipe face detection'))
+      );
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js';
+    script.crossOrigin = 'anonymous';
+    script.dataset.mediapipe = 'true';
+    script.onload = () => resolve();
+    script.onerror = () =>
+      reject(new Error('Failed to load MediaPipe face detection from CDN. Please check your internet connection.'));
+    document.head.appendChild(script);
+  });
+}
+
 function classifyError(error: unknown): string {
   if (error instanceof DOMException) {
     switch (error.name) {
@@ -53,6 +78,7 @@ export default function LivenessCheck() {
     if (!videoEl) return;
 
     try {
+      await loadMediaPipe();
       const { createLivenessSDK } = await import('@aigencorp/face-liveness-sdk');
       const sdk = await createLivenessSDK(videoEl);
       sdkRef.current = sdk;
