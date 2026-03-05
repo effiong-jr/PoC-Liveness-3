@@ -278,7 +278,7 @@ export default function LivenessCheck() {
 
               {/* Loading overlay */}
               {status === 'starting' && (
-                <div className="absolute inset-0 bg-gray-950/70 flex flex-col items-center justify-center">
+                <div className="absolute inset-0 bg-gray-950/40 flex flex-col items-center justify-center">
                   <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
                   <p className="text-white text-sm">{loadingMessage}</p>
                 </div>
