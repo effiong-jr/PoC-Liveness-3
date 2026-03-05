@@ -69,6 +69,7 @@ export default function LivenessCheck() {
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [progress, setProgress] = useState(0);
+  const [captureFlash, setCaptureFlash] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -92,7 +93,7 @@ export default function LivenessCheck() {
       sdk.on('camera:ready', () => {
         faceDetectedRef.current = false;
         setStatus('active');
-        setGuidance('Position your face in the frame');
+        setGuidance('Position your face within the circle');
         setGuidanceGood(false);
         timeoutRef.current = setTimeout(() => {
           sdk.destroy();
@@ -117,13 +118,15 @@ export default function LivenessCheck() {
           setGuidance('Move closer');
           setGuidanceGood(false);
         } else {
-          setGuidance('Center your face in the frame');
+          setGuidance('Center your face within the circle');
           setGuidanceGood(false);
         }
       });
 
       sdk.on('capture:success', () => {
         setProgress((prev) => Math.min(prev + 25, 100));
+        setCaptureFlash(true);
+        setTimeout(() => setCaptureFlash(false), 150);
       });
 
       sdk.on('capture:complete', (images: string[]) => {
@@ -180,6 +183,7 @@ export default function LivenessCheck() {
     setCapturedImages([]);
     setErrorMessage('');
     setProgress(0);
+    setCaptureFlash(false);
   };
 
   const showWebcam = status === 'starting' || status === 'active';
@@ -247,13 +251,30 @@ export default function LivenessCheck() {
                 style={{ transform: 'scaleX(-1)' }}
               />
 
-              {/* Face oval guide */}
+              {/* Face oval guide — green when positioned correctly, white otherwise */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div
-                  className="border-2 border-white/40 rounded-full"
+                  className={`border-[3px] rounded-full transition-colors duration-300 ${
+                    guidanceGood ? 'border-green-400' : 'border-white/60'
+                  }`}
                   style={{ width: '55%', height: '80%' }}
                 />
               </div>
+
+              {/* Capture flash — brief white flash on each captured frame */}
+              {captureFlash && (
+                <div className="absolute inset-0 bg-white/30 pointer-events-none" />
+              )}
+
+              {/* In-video progress badge — top center, visible once capturing starts */}
+              {status === 'active' && progress > 0 && (
+                <div className="absolute top-4 left-0 right-0 flex justify-center pointer-events-none">
+                  <div className="bg-black/60 backdrop-blur-sm rounded-full px-4 py-1.5 flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                    <span className="text-white text-sm font-semibold">{progress}% captured</span>
+                  </div>
+                </div>
+              )}
 
               {/* Loading overlay */}
               {status === 'starting' && (
@@ -263,11 +284,11 @@ export default function LivenessCheck() {
                 </div>
               )}
 
-              {/* Guidance overlay */}
+              {/* Guidance pill — bottom of video */}
               {status === 'active' && guidance && (
                 <div className="absolute bottom-4 left-0 right-0 flex justify-center">
                   <span
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors duration-300 ${
+                    className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors duration-300 ${
                       guidanceGood
                         ? 'bg-green-500 text-white'
                         : 'bg-black/60 text-white border border-white/20'
@@ -278,22 +299,6 @@ export default function LivenessCheck() {
                 </div>
               )}
             </div>
-
-            {/* Progress bar */}
-            {status === 'active' && (
-              <div className="px-4 py-3">
-                <div className="flex justify-between text-xs text-gray-400 mb-1">
-                  <span>Capturing images</span>
-                  <span>{progress}%</span>
-                </div>
-                <div className="h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-            )}
           </div>
         )}
 
