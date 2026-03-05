@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.npmjs.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(ls -d /c/Users/effiong.bassey/Documents/work/poc-liveness-3/node_modules/*aigencorp* /c/Users/effiong.bassey/Documents/work/poc-liveness-3/node_modules/*webcam*)",
+      "Bash(npm install @aigencorp/face-liveness-sdk react-webcam)",
+      "Bash(npm view @mediapipe/drawing_utils versions --json)",
+      "Bash(npm view @aigencorp/face-liveness-sdk --json)",
+      "Bash(npm install @aigencorp/face-liveness-sdk react-webcam --legacy-peer-deps)",
+      "Bash(npm run build)"
+    ]
+  }
+}
