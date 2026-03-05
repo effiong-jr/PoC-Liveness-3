@@ -60,7 +60,10 @@ function classifyError(error: unknown): string {
 export default function LivenessCheck() {
   const webcamRef = useRef<Webcam>(null);
   const sdkRef = useRef<LivenessSDK | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const faceDetectedRef = useRef(false);
   const [status, setStatus] = useState<Status>('idle');
+  const [loadingMessage, setLoadingMessage] = useState('Requesting camera permission...');
   const [guidance, setGuidance] = useState('');
   const [guidanceGood, setGuidanceGood] = useState(false);
   const [capturedImages, setCapturedImages] = useState<string[]>([]);
@@ -69,6 +72,7 @@ export default function LivenessCheck() {
 
   useEffect(() => {
     return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
       sdkRef.current?.destroy();
     };
   }, []);
@@ -79,17 +83,30 @@ export default function LivenessCheck() {
 
     try {
       await loadMediaPipe();
+      setLoadingMessage('Initializing face detection...');
       const { createLivenessSDK } = await import('@aigencorp/face-liveness-sdk');
       const sdk = await createLivenessSDK(videoEl);
       sdkRef.current = sdk;
+      setLoadingMessage('Starting face scan...');
 
       sdk.on('camera:ready', () => {
+        faceDetectedRef.current = false;
         setStatus('active');
         setGuidance('Position your face in the frame');
         setGuidanceGood(false);
+        timeoutRef.current = setTimeout(() => {
+          sdk.destroy();
+          sdkRef.current = null;
+          const msg = faceDetectedRef.current
+            ? 'Face scan timed out. Please keep your face centered and at the correct distance, then try again.'
+            : 'No face detected. Make sure your face is clearly visible and well-lit, then try again.';
+          setErrorMessage(msg);
+          setStatus('error');
+        }, 30_000);
       });
 
       sdk.on('face:position', (pos: FacePosition) => {
+        faceDetectedRef.current = true;
         if (pos.isCentered && pos.isGoodDistance) {
           setGuidance('Perfect! Hold still...');
           setGuidanceGood(true);
@@ -110,6 +127,7 @@ export default function LivenessCheck() {
       });
 
       sdk.on('capture:complete', (images: string[]) => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
         setCapturedImages(images);
         setStatus('captured');
         setProgress(100);
@@ -118,6 +136,7 @@ export default function LivenessCheck() {
       });
 
       sdk.on('error', (err: Error) => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
         setErrorMessage(classifyError(err));
         setStatus('error');
       });
@@ -130,6 +149,7 @@ export default function LivenessCheck() {
   }, []);
 
   const handleUserMedia = useCallback(() => {
+    setLoadingMessage('Loading face detection...');
     initSDK();
   }, [initSDK]);
 
@@ -147,10 +167,12 @@ export default function LivenessCheck() {
       return;
     }
     setProgress(0);
+    setLoadingMessage('Requesting camera permission...');
     setStatus('starting');
   };
 
   const handleReset = () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     sdkRef.current?.destroy();
     sdkRef.current = null;
     setStatus('idle');
@@ -237,7 +259,7 @@ export default function LivenessCheck() {
               {status === 'starting' && (
                 <div className="absolute inset-0 bg-gray-950/70 flex flex-col items-center justify-center">
                   <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3" />
-                  <p className="text-white text-sm">Initializing camera...</p>
+                  <p className="text-white text-sm">{loadingMessage}</p>
                 </div>
               )}
 
