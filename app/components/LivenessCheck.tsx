@@ -3,7 +3,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import type { FacePosition } from '@aigencorp/face-liveness-sdk';
-import type { LivenessSDK } from '@aigencorp/face-liveness-sdk';
 
 type Status = 'idle' | 'starting' | 'active' | 'captured' | 'timeout' | 'error';
 
@@ -59,7 +58,7 @@ function classifyError(error: unknown): string {
 
 export default function LivenessCheck() {
   const webcamRef = useRef<Webcam>(null);
-  const sdkRef = useRef<LivenessSDK | null>(null);
+  const sdkRef = useRef<{ destroy: () => void } | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const faceDetectedRef = useRef(false);
   const [status, setStatus] = useState<Status>('idle');
@@ -85,28 +84,29 @@ export default function LivenessCheck() {
     try {
       await loadMediaPipe();
       setLoadingMessage('Initializing face detection...');
-      const { createLivenessSDK } = await import('@aigencorp/face-liveness-sdk');
-      const sdk = await createLivenessSDK(videoEl);
-      sdkRef.current = sdk;
-      setLoadingMessage('Starting face scan...');
 
-      sdk.on('camera:ready', () => {
+      const { LivenessSDKManager } = await import('@aigencorp/face-liveness-sdk');
+      const manager = new LivenessSDKManager();
+
+      // Register ALL listeners BEFORE initialize() —
+      // camera:ready fires synchronously inside initialize() so listeners must exist first.
+      manager.on('camera:ready', () => {
         faceDetectedRef.current = false;
         setStatus('active');
         setGuidance('Position your face within the circle');
         setGuidanceGood(false);
         timeoutRef.current = setTimeout(() => {
-          sdk.destroy();
+          manager.destroy();
           sdkRef.current = null;
           const msg = faceDetectedRef.current
-            ? 'Face scan timed out. Please keep your face centered and at the correct distance, then try again.'
-            : 'No face detected. Make sure your face is clearly visible and well-lit, then try again.';
+            ? 'Face scan timed out. Please keep your face centered and at the correct distance.'
+            : 'No face detected. Make sure your face is clearly visible and well-lit.';
           setErrorMessage(msg);
           setStatus('timeout');
         }, 30_000);
       });
 
-      sdk.on('face:position', (pos: FacePosition) => {
+      manager.on('face:position', (pos: FacePosition) => {
         faceDetectedRef.current = true;
         if (pos.isCentered && pos.isGoodDistance) {
           setGuidance('Perfect! Hold still...');
@@ -123,28 +123,35 @@ export default function LivenessCheck() {
         }
       });
 
-      sdk.on('capture:success', () => {
+      manager.on('capture:success', () => {
         setProgress((prev) => Math.min(prev + 25, 100));
         setCaptureFlash(true);
         setTimeout(() => setCaptureFlash(false), 150);
       });
 
-      sdk.on('capture:complete', (images: string[]) => {
+      manager.on('capture:complete', (images: string[]) => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        console.log('[LivenessCheck] Captured images:', images);
         setCapturedImages(images);
         setStatus('captured');
         setProgress(100);
-        sdk.destroy();
+        manager.destroy();
         sdkRef.current = null;
       });
 
-      sdk.on('error', (err: Error) => {
+      manager.on('error', (err: Error) => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
         setErrorMessage(classifyError(err));
         setStatus('error');
       });
 
-      await sdk.captureImages();
+      // initialize() triggers camera:ready — caught by the listeners above
+      setLoadingMessage('Starting face scan...');
+      await manager.initialize(videoEl);
+      sdkRef.current = manager;
+
+      // Start the face detection + capture loop
+      await manager.startCapture();
     } catch (err) {
       setErrorMessage(classifyError(err));
       setStatus('error');
