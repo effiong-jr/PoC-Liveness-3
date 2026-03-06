@@ -5,7 +5,7 @@ import Webcam from 'react-webcam';
 import type { FacePosition } from '@aigencorp/face-liveness-sdk';
 import type { LivenessSDK } from '@aigencorp/face-liveness-sdk';
 
-type Status = 'idle' | 'starting' | 'active' | 'captured' | 'error';
+type Status = 'idle' | 'starting' | 'active' | 'captured' | 'timeout' | 'error';
 
 const VIDEO_CONSTRAINTS = {
   facingMode: 'user',
@@ -102,7 +102,7 @@ export default function LivenessCheck() {
             ? 'Face scan timed out. Please keep your face centered and at the correct distance, then try again.'
             : 'No face detected. Make sure your face is clearly visible and well-lit, then try again.';
           setErrorMessage(msg);
-          setStatus('error');
+          setStatus('timeout');
         }, 30_000);
       });
 
@@ -348,6 +348,35 @@ export default function LivenessCheck() {
                 Start Over
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Timeout */}
+        {status === 'timeout' && (
+          <div className="bg-gray-900 rounded-2xl p-8 text-center border border-amber-800/40">
+            <div className="w-14 h-14 rounded-full bg-amber-600/20 flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-8 h-8 text-amber-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 6v6l4 2m6-2a10 10 0 11-20 0 10 10 0 0120 0z"
+                />
+              </svg>
+            </div>
+            <h2 className="text-white font-semibold text-lg mb-2">Time&apos;s up</h2>
+            <p className="text-gray-400 text-sm mb-6 leading-relaxed">{errorMessage}</p>
+            <button
+              onClick={handleReset}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-6 rounded-xl transition-colors duration-200"
+            >
+              Start Over
+            </button>
           </div>
         )}
 
